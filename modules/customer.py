@@ -9,7 +9,7 @@ Flow:
   1 → New delivery → Pick pickup → Pick destination → Confirm
   2 → My orders (placeholder)
 """
-from core import db, audit
+from core import db, audit, sms
 from config import format_landmarks, get_landmark_name
 
 
@@ -112,6 +112,7 @@ def new_delivery(session_id, phone, parts):
             audit.log_event(phone, session_id, 'order_placed', {
                 'order_id': order_id, 'pickup': pickup, 'destination': destination
             })
+            sms.send_order_confirmation(phone, order_id, pickup, destination)
             return (
                 f"END Order #{order_id} confirmed!\n"
                 f"From: {pickup}\n"

@@ -8,7 +8,7 @@ Flow:
   1 → List a crop → Name → Quantity → Price → Confirm
   2 → My listings (placeholder)
 """
-from core import db, audit
+from core import db, audit, sms
 
 
 # Common crops in the Bumala area
@@ -99,6 +99,7 @@ def list_crop(session_id, phone, parts):
                 'crop_id': crop_id, 'crop': crop_name,
                 'quantity': quantity, 'price': price
             })
+            sms.send_crop_listed(phone, crop_name, price)
             return (
                 f"END Listed! {crop_name}\n"
                 f"Quantity: {quantity}\n"

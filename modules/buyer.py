@@ -8,7 +8,7 @@ Flow:
   1 → Browse crops → Select → Confirm purchase
   2 → My purchases (placeholder)
 """
-from core import db, audit
+from core import db, audit, sms
 
 
 def handle(session_id, phone, parts):
@@ -86,6 +86,8 @@ def browse_crops(session_id, phone, parts):
                 'price': selected['price'],
                 'seller': selected['phone']
             })
+            sms.send_purchase_to_buyer(phone, selected['crop_name'], selected['price'], selected['phone'])
+            sms.send_purchase_to_seller(selected['phone'], selected['crop_name'], selected['price'], phone)
             return (
                 f"END Purchase confirmed!\n"
                 f"{selected['crop_name']} - KES {selected['price']}\n"

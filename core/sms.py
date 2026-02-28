@@ -50,6 +50,24 @@ def send_crop_listed(to, crop_name, price):
     return send_sms(to, message)
 
 
+def send_purchase_to_buyer(to, crop_name, price, seller_phone):
+    """Notify buyer their purchase is confirmed with seller contact."""
+    message = (
+        f"Angelopp: You bought {crop_name} for KES {price}.\n"
+        f"Contact the farmer: {seller_phone}"
+    )
+    return send_sms(to, message)
+
+
+def send_purchase_to_seller(to, crop_name, price, buyer_phone):
+    """Notify farmer their crop was purchased with buyer contact."""
+    message = (
+        f"Angelopp: Your {crop_name} (KES {price}) has been purchased!\n"
+        f"Contact the buyer: {buyer_phone}"
+    )
+    return send_sms(to, message)
+
+
 def broadcast(phones, message):
     """Send same message to multiple numbers. Use sparingly."""
     results = []
