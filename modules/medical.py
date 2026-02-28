@@ -25,32 +25,47 @@ def handle(session_id, phone, parts):
     if not pickup:
         return "CON Invalid location. Try again.\n" + format_landmarks()
 
-    # Step 2: Confirm — one step to go
+    # Step 2: Ask what the emergency is
     if len(parts) == 1:
+        return (
+            f"CON From: {pickup}\n"
+            f"To: {DESTINATION}\n"
+            f"What is the emergency?"
+        )
+
+    emergency = parts[1]
+
+    # Step 3: Confirm
+    if len(parts) == 2:
         return (
             f"CON Urgent transport:\n"
             f"From: {pickup}\n"
             f"To: {DESTINATION}\n"
+            f"Emergency: {emergency}\n"
             f"1. Confirm\n"
             f"2. Cancel"
         )
 
-    # Step 3: Execute
-    if len(parts) == 2:
-        if parts[1] == '1':
+    # Step 4: Execute
+    if len(parts) == 3:
+        if parts[2] == '1':
             order_id = db.create_order(
                 phone, 'medical', pickup, DESTINATION,
-                order_type='medical', urgent=1
+                order_type='medical', description=emergency, urgent=1
             )
             audit.log_event(phone, session_id, 'order_placed', {
                 'order_id': order_id, 'pickup': pickup,
-                'destination': DESTINATION, 'type': 'medical', 'urgent': True
+                'destination': DESTINATION, 'emergency': emergency,
+                'type': 'medical', 'urgent': True
             })
-            sms.send_medical_confirmation(phone, order_id, pickup)
+            sms.send_medical_confirmation(
+                phone, order_id, pickup, emergency
+            )
             return (
                 f"END Medical transport #{order_id} confirmed!\n"
                 f"From: {pickup}\n"
                 f"To: {DESTINATION}\n"
+                f"Emergency: {emergency}\n"
                 f"A rider will be notified immediately."
             )
         else:

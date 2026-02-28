@@ -53,40 +53,64 @@ def handle(session_id, phone, parts):
 
     description = parts[2]
 
-    # Step 4: Confirm
+    # Step 4: Optional instructions for rider
     if len(parts) == 3:
+        return (
+            f"CON Item: {description}\n"
+            f"Add instructions for the rider?\n"
+            f"1. Add instructions\n"
+            f"2. Skip"
+        )
+
+    # Handle optional instructions
+    instructions = None
+    if parts[3] == '1':
+        if len(parts) == 4:
+            return "CON Type instructions for the rider:"
+        instructions = parts[4]
+        confirm_parts = parts[5:]
+    elif parts[3] == '2':
+        confirm_parts = parts[4:]
+    else:
+        confirm_parts = parts[4:]
+
+    # Step 5: Confirm
+    if not confirm_parts:
+        instr_line = f"Note: {instructions}\n" if instructions else ""
         return (
             f"CON Confirm delivery:\n"
             f"From: {pickup}\n"
             f"To: {destination}\n"
             f"Item: {description}\n"
+            f"{instr_line}"
             f"1. Confirm\n"
             f"2. Cancel"
         )
 
-    # Step 5: Execute on consent
-    if len(parts) == 4:
-        if parts[3] == '1':
-            order_id = db.create_order(
-                phone, 'delivery', pickup, destination,
-                order_type='delivery', description=description
-            )
-            audit.log_event(phone, session_id, 'order_placed', {
-                'order_id': order_id, 'pickup': pickup,
-                'destination': destination, 'description': description
-            })
-            sms.send_delivery_confirmation(
-                phone, order_id, pickup, destination, description
-            )
-            return (
-                f"END Delivery #{order_id} confirmed!\n"
-                f"From: {pickup}\n"
-                f"To: {destination}\n"
-                f"Item: {description}\n"
-                f"You'll get an SMS when a rider picks it up."
-            )
-        else:
-            audit.log_event(phone, session_id, 'order_cancelled', {})
-            return "END Delivery cancelled. Dial again when ready."
-
-    return "END Something went wrong. Please try again."
+    # Step 6: Execute on consent
+    if confirm_parts[0] == '1':
+        full_desc = description
+        if instructions:
+            full_desc = f"{description} ({instructions})"
+        order_id = db.create_order(
+            phone, 'delivery', pickup, destination,
+            order_type='delivery', description=full_desc
+        )
+        audit.log_event(phone, session_id, 'order_placed', {
+            'order_id': order_id, 'pickup': pickup,
+            'destination': destination, 'description': description,
+            'instructions': instructions
+        })
+        sms.send_delivery_confirmation(
+            phone, order_id, pickup, destination, full_desc
+        )
+        return (
+            f"END Delivery #{order_id} confirmed!\n"
+            f"From: {pickup}\n"
+            f"To: {destination}\n"
+            f"Item: {description}\n"
+            f"You'll get an SMS when a rider picks it up."
+        )
+    else:
+        audit.log_event(phone, session_id, 'order_cancelled', {})
+        return "END Delivery cancelled. Dial again when ready."

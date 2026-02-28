@@ -55,6 +55,22 @@ def handle_ussd(session_id, phone, text):
     if not parts:
         return welcome_screen(user)
 
+    # Name registration — new user without a name
+    if not user.get('name'):
+        name = parts[0]
+        db.update_user_name(phone, name)
+        audit.log_event(phone, session_id, 'name_set', {'name': name})
+        user['name'] = name
+        rest_after_name = parts[1:]
+        if not rest_after_name:
+            return role_select_screen()
+        parts = rest_after_name
+    elif parts[0] == user['name']:
+        # Name already set — skip the name prefix from USSD path
+        parts = parts[1:]
+        if not parts:
+            return welcome_screen(user)
+
     # Step 3: Route
     first = parts[0]
     rest = parts[1:] if len(parts) > 1 else []
@@ -102,11 +118,15 @@ def handle_ussd(session_id, phone, text):
 
 
 def welcome_screen(user):
-    """First screen. Returning users get a shortcut (rule 6)."""
+    """First screen. New users without name get asked. Returning get shortcut."""
+    # New user without a name — ask first
+    if not user.get('name'):
+        return "CON Welcome to Angelopp!\nWhat is your name?"
+
     if user.get('last_role'):
         display = ROLE_DISPLAY.get(user['last_role'], user['last_role'])
         return (
-            f"CON Welcome back to Angelopp!\n"
+            f"CON Welcome back, {user['name']}!\n"
             f"Continue with {display}?\n"
             f"1. Yes\n"
             f"2. Choose different"

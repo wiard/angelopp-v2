@@ -7,7 +7,6 @@ import sqlite3
 import os
 from config import DB_PATH
 
-
 def get_connection():
     """Return a database connection. Caller must close it."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -110,6 +109,19 @@ def create_user(phone, name=None):
         )
         conn.commit()
         return get_user(phone)
+    finally:
+        conn.close()
+
+
+def update_user_name(phone, name):
+    """Store user's name."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE users SET name = ? WHERE phone = ?",
+            (name, phone)
+        )
+        conn.commit()
     finally:
         conn.close()
 

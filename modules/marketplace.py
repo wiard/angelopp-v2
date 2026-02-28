@@ -46,7 +46,7 @@ def handle(session_id, phone, parts):
 
 
 def sell_crop(session_id, phone, parts):
-    """Sell flow: crop -> quantity -> price -> confirm."""
+    """Sell flow: crop -> [custom name] -> quantity -> price -> confirm."""
     if not parts:
         return "CON What are you selling?\n" + _crop_list()
 
@@ -54,6 +54,13 @@ def sell_crop(session_id, phone, parts):
     crop_name = CROPS.get(crop_key)
     if not crop_name:
         return "CON Invalid crop. Try again.\n" + _crop_list()
+
+    # "Other" needs a custom crop name
+    if crop_name == 'Other':
+        if len(parts) == 1:
+            return "CON Enter crop name:"
+        crop_name = parts[1]
+        parts = [parts[0]] + parts[2:]  # collapse custom name out
 
     if len(parts) == 1:
         return f"CON Selling: {crop_name}\nEnter quantity (e.g. 50kg, 2 bags):"
@@ -121,40 +128,60 @@ def buy_crop(session_id, phone, parts):
 
     if len(parts) == 1:
         return (
-            f"CON Buy this crop?\n"
+            f"CON {selected['crop_name']} - KES {selected['price']}\n"
+            f"Add a message for the farmer?\n"
+            f"1. Add message\n"
+            f"2. Skip"
+        )
+
+    # Handle optional message
+    message = None
+    if parts[1] == '1':
+        if len(parts) == 2:
+            return "CON Type your message for the farmer:"
+        message = parts[2]
+        confirm_parts = parts[3:]
+    elif parts[1] == '2':
+        confirm_parts = parts[2:]
+    else:
+        confirm_parts = parts[2:]
+
+    if not confirm_parts:
+        msg_line = f"Message: {message}\n" if message else ""
+        return (
+            f"CON Confirm purchase:\n"
             f"Crop: {selected['crop_name']}\n"
             f"Quantity: {selected['quantity']}\n"
             f"Price: KES {selected['price']}\n"
+            f"{msg_line}"
             f"1. Confirm\n"
             f"2. Cancel"
         )
 
-    if len(parts) == 2:
-        if parts[1] == '1':
-            audit.log_event(phone, session_id, 'crop_purchased', {
-                'crop_id': selected['id'],
-                'crop': selected['crop_name'],
-                'price': selected['price'],
-                'seller': selected['phone']
-            })
-            sms.send_purchase_to_buyer(
-                phone, selected['crop_name'],
-                selected['price'], selected['phone']
-            )
-            sms.send_purchase_to_seller(
-                selected['phone'], selected['crop_name'],
-                selected['price'], phone
-            )
-            return (
-                f"END Purchase confirmed!\n"
-                f"{selected['crop_name']} - KES {selected['price']}\n"
-                f"The farmer will be notified.\n"
-                f"You will receive an SMS with contact details."
-            )
-        else:
-            return "END Purchase cancelled."
-
-    return "END Something went wrong. Please try again."
+    if confirm_parts[0] == '1':
+        audit.log_event(phone, session_id, 'crop_purchased', {
+            'crop_id': selected['id'],
+            'crop': selected['crop_name'],
+            'price': selected['price'],
+            'seller': selected['phone'],
+            'message': message
+        })
+        sms.send_purchase_to_buyer(
+            phone, selected['crop_name'],
+            selected['price'], selected['phone']
+        )
+        sms.send_purchase_to_seller(
+            selected['phone'], selected['crop_name'],
+            selected['price'], phone, message=message
+        )
+        return (
+            f"END Purchase confirmed!\n"
+            f"{selected['crop_name']} - KES {selected['price']}\n"
+            f"The farmer will be notified.\n"
+            f"You will receive an SMS with contact details."
+        )
+    else:
+        return "END Purchase cancelled."
 
 
 def _crop_list():

@@ -49,12 +49,14 @@ def send_ride_confirmation(to, order_id, pickup, destination):
     return send_sms(to, message)
 
 
-def send_medical_confirmation(to, order_id, pickup):
+def send_medical_confirmation(to, order_id, pickup, emergency=None):
     """Send urgent medical transport confirmation SMS."""
+    emg_line = f"Emergency: {emergency}\n" if emergency else ""
     message = (
         f"Angelopp URGENT: Medical transport #{order_id}.\n"
         f"Pickup: {pickup}\n"
         f"To: Bumala Health Center\n"
+        f"{emg_line}"
         f"A rider will be notified immediately."
     )
     return send_sms(to, message)
@@ -78,13 +80,16 @@ def send_purchase_to_buyer(to, crop_name, price, seller_phone):
     return send_sms(to, message)
 
 
-def send_purchase_to_seller(to, crop_name, price, buyer_phone):
+def send_purchase_to_seller(to, crop_name, price, buyer_phone,
+                            message=None):
     """Notify farmer their crop was purchased with buyer contact."""
-    message = (
+    msg_line = f"Message: {message}\n" if message else ""
+    body = (
         f"Angelopp: Your {crop_name} (KES {price}) has been purchased!\n"
+        f"{msg_line}"
         f"Contact the buyer: {buyer_phone}"
     )
-    return send_sms(to, message)
+    return send_sms(to, body)
 
 
 def broadcast(phones, message):
