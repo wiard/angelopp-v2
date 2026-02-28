@@ -7,26 +7,35 @@ Rule 6: Numbers are shortcuts, not menus.
 """
 import logging
 from core import db, audit
-from modules import customer, provider, farmer, buyer
-from config import LANDMARKS, format_landmarks, get_landmark_name
+from modules import delivery, ride, medical, marketplace, rider
 
 logger = logging.getLogger('angelopp.router')
 
-# Role mapping — the four rooms
+# Role mapping — the five rooms
 ROLES = {
-    '1': ('customer', 'Customer (Request delivery)', customer),
-    '2': ('provider', 'Provider (Offer transport)', provider),
-    '3': ('farmer', 'Farmer (Sell crops)', farmer),
-    '4': ('buyer', 'Buyer (Buy crops)', buyer),
+    '1': ('delivery', 'Send something', delivery),
+    '2': ('ride', 'I need a ride', ride),
+    '3': ('medical', 'Medical transport', medical),
+    '4': ('marketplace', 'Buy or sell crops', marketplace),
+    '5': ('rider', "I'm a rider", rider),
+}
+
+# Human-readable role descriptions for returning users
+ROLE_DISPLAY = {
+    'delivery': 'sending deliveries',
+    'ride': 'booking rides',
+    'medical': 'medical transport',
+    'marketplace': 'the marketplace',
+    'rider': 'finding rides',
 }
 
 
 def handle_ussd(session_id, phone, text):
     """
     Main USSD entry point. Called by app.py on every request.
-    
+
     Flow:
-    1. Internal: get/create user (rule 5: internal first)
+    1. Internal: get/create user
     2. Reflect: parse input, handle back navigation
     3. Route: send to correct room
     4. Respond: return CON or END text
@@ -41,78 +50,80 @@ def handle_ussd(session_id, phone, text):
 
     # Step 2: Reflect — parse the input path
     parts = [p for p in text.split('*') if p] if text else []
-
-    # Back navigation: 0 = go back one step (for real phones)
     parts = _process_back(parts)
 
-    # Empty input (or backed all the way out) = start of session
     if not parts:
-        return welcome_screen(user, phone)
+        return welcome_screen(user)
 
-    # Step 3: Route based on first input (role selection or shortcut)
+    # Step 3: Route
     first = parts[0]
     rest = parts[1:] if len(parts) > 1 else []
 
-    # Handle "continue as last role" for returning users
-    if user.get('last_role') and first == '1' and not _was_at_role_select(parts, user):
-        # User said "Yes" to "Continue as [role]?"
-        role_key = _role_name_to_key(user['last_role'])
-        if role_key and role_key in ROLES:
-            role_name, _, module = ROLES[role_key]
-            audit.log_event(phone, session_id, 'role_select', {'role': role_name, 'shortcut': True})
-            return module.handle(session_id, phone, rest)
+    # Returning user: 1=continue with last role, 2=choose different
+    if user.get('last_role'):
+        if first == '1':
+            role_key = _role_name_to_key(user['last_role'])
+            if role_key and role_key in ROLES:
+                role_name, _, module = ROLES[role_key]
+                audit.log_event(phone, session_id, 'role_select', {
+                    'role': role_name, 'shortcut': True
+                })
+                return module.handle(session_id, phone, rest)
 
-    # "2" on welcome-back screen = show role selection
-    if user.get('last_role') and first == '2' and len(parts) == 1:
-        return role_select_screen()
+        if first == '2':
+            # "Choose different" — always intercept for returning users
+            if not rest:
+                return role_select_screen()
+            role_pick = rest[0]
+            role_rest = rest[1:]
+            if role_pick in ROLES:
+                role_name, _, module = ROLES[role_pick]
+                db.update_user_role(phone, role_name)
+                audit.log_event(phone, session_id, 'role_select', {
+                    'role': role_name
+                })
+                return module.handle(session_id, phone, role_rest)
+            audit.log_event(phone, session_id, 'error', {
+                'input': text, 'reason': 'invalid_role'
+            })
+            return "END Invalid choice. Dial again."
 
-    # Direct role selection
+    # Direct role selection (new users, or returning users typing 3-5)
     if first in ROLES:
         role_name, _, module = ROLES[first]
         db.update_user_role(phone, role_name)
         audit.log_event(phone, session_id, 'role_select', {'role': role_name})
         return module.handle(session_id, phone, rest)
 
-    # If we get here with a returning user who picked "2" (other role)
-    # then selected a role, the path is "2*[role]*..."
-    if first == '2' and rest:
-        role_pick = rest[0]
-        role_rest = rest[1:] if len(rest) > 1 else []
-        if role_pick in ROLES:
-            role_name, _, module = ROLES[role_pick]
-            db.update_user_role(phone, role_name)
-            audit.log_event(phone, session_id, 'role_select', {'role': role_name})
-            return module.handle(session_id, phone, role_rest)
-
-    # Unknown input
-    audit.log_event(phone, session_id, 'error', {'input': text, 'reason': 'unknown_path'})
+    audit.log_event(phone, session_id, 'error', {
+        'input': text, 'reason': 'unknown_path'
+    })
     return "END Invalid input. Please try again."
 
 
-def welcome_screen(user, phone):
-    """
-    First screen. Returning users get a shortcut (rule 6).
-    New users get role selection.
-    """
+def welcome_screen(user):
+    """First screen. Returning users get a shortcut (rule 6)."""
     if user.get('last_role'):
+        display = ROLE_DISPLAY.get(user['last_role'], user['last_role'])
         return (
             f"CON Welcome back to Angelopp!\n"
-            f"Continue as {user['last_role']}?\n"
+            f"Continue with {display}?\n"
             f"1. Yes\n"
-            f"2. Choose different role"
+            f"2. Choose different"
         )
     return role_select_screen()
 
 
 def role_select_screen():
-    """Show the four rooms. This is the only menu."""
+    """Show the five rooms."""
     return (
-        "CON Welcome to Angelopp!\n"
-        "Choose your role:\n"
-        "1. Customer (Request delivery)\n"
-        "2. Provider (Offer transport)\n"
-        "3. Farmer (Sell crops)\n"
-        "4. Buyer (Buy crops)"
+        "CON Angelopp Bumala\n"
+        "What do you need?\n"
+        "1. Send something\n"
+        "2. I need a ride\n"
+        "3. Medical transport\n"
+        "4. Buy or sell crops\n"
+        "5. I'm a rider"
     )
 
 
@@ -134,9 +145,3 @@ def _process_back(parts):
         else:
             result.append(part)
     return result
-
-
-def _was_at_role_select(parts, user):
-    """Check if user is at role selection (picked '2' then a role number)."""
-    # If first input is a role number and user has no last_role, they're selecting directly
-    return not user.get('last_role')

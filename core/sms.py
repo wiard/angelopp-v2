@@ -1,7 +1,6 @@
 """
 Angelopp v2 — SMS Service (The Telephone Room)
 Rule 4: The outside world is locked. Only through here, only with consent.
-This module can also run standalone (cron jobs, broadcasts).
 """
 import logging
 from config import AT_USERNAME, AT_API_KEY, AT_SENDER_ID
@@ -10,10 +9,7 @@ logger = logging.getLogger('angelopp.sms')
 
 
 def send_sms(to, message):
-    """
-    Send a single SMS via Africa's Talking.
-    Returns True on success, False on failure.
-    """
+    """Send a single SMS via Africa's Talking."""
     if not AT_API_KEY:
         logger.warning(f"SMS not sent (no API key): to={to}, msg={message[:50]}")
         return False
@@ -30,13 +26,36 @@ def send_sms(to, message):
         return False
 
 
-def send_order_confirmation(to, order_id, pickup, destination):
-    """Send order confirmation SMS."""
+def send_delivery_confirmation(to, order_id, pickup, destination, description):
+    """Send delivery confirmation SMS."""
     message = (
-        f"Angelopp: Your order #{order_id} is confirmed.\n"
+        f"Angelopp: Delivery #{order_id} confirmed.\n"
         f"From: {pickup}\n"
         f"To: {destination}\n"
-        f"We will notify you when a rider accepts."
+        f"Item: {description}\n"
+        f"A rider will pick it up soon."
+    )
+    return send_sms(to, message)
+
+
+def send_ride_confirmation(to, order_id, pickup, destination):
+    """Send ride confirmation SMS."""
+    message = (
+        f"Angelopp: Ride #{order_id} confirmed.\n"
+        f"From: {pickup}\n"
+        f"To: {destination}\n"
+        f"A rider will contact you soon."
+    )
+    return send_sms(to, message)
+
+
+def send_medical_confirmation(to, order_id, pickup):
+    """Send urgent medical transport confirmation SMS."""
+    message = (
+        f"Angelopp URGENT: Medical transport #{order_id}.\n"
+        f"Pickup: {pickup}\n"
+        f"To: Bumala Health Center\n"
+        f"A rider will be notified immediately."
     )
     return send_sms(to, message)
 
@@ -44,7 +63,7 @@ def send_order_confirmation(to, order_id, pickup, destination):
 def send_crop_listed(to, crop_name, price):
     """Notify farmer their crop is listed."""
     message = (
-        f"Angelopp: Your listing for {crop_name} at {price} is now live.\n"
+        f"Angelopp: Your listing for {crop_name} at KES {price} is live.\n"
         f"Buyers can see it in the marketplace."
     )
     return send_sms(to, message)
