@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ANGELOPP — USSD Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #0a0e1a;
+    --bg-phone: #1a1f2e;
+    --bg-phone-edge: #252b3d;
+    --bg-screen: #0a1a0a;
+    --green-dim: #2a6e2a;
+    --green-main: #33cc33;
+    --green-bright: #44ff44;
+    --text-muted: #667788;
+    --text-light: #99aabb;
+    --text-white: #ddeeff;
+    --btn-bg: #2a3040;
+    --btn-hover: #353d50;
+    --btn-active: #1a2030;
+    --call-green: #22aa44;
+    --end-red: #cc3333;
+    --border: #2a3348;
+    --panel-bg: #111827;
+    --amber-dim: #6e5a2a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-white);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .phone-container {
+    width: 100%;
+    max-width: 380px;
+    background: var(--bg-phone);
+    border-radius: 28px;
+    padding: 16px 14px 20px;
+    border: 1px solid var(--bg-phone-edge);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 20px 60px rgba(0,0,0,0.5), 0 0 80px rgba(51,204,51,0.03);
+  }
+
+  .phone-brand {
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: var(--text-muted);
+    padding: 4px 0 12px;
+    text-transform: uppercase;
+  }
+
+  .screen {
+    background: var(--bg-screen);
+    border-radius: 8px;
+    border: 2px solid #1a2a1a;
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.4), inset 0 0 60px rgba(51,204,51,0.02);
+    position: relative;
+  }
+
+  .screen::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .screen-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid #1a2a1a;
+    position: relative;
+    z-index: 1;
+  }
+
+  .carrier { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--green-dim); }
+
+  .status-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+  }
+
+  .status-idle { background: rgba(51,204,51,0.1); color: var(--green-dim); border: 1px solid var(--green-dim); }
+  .status-ussd { background: rgba(51,204,51,0.2); color: var(--green-main); border: 1px solid var(--green-main); animation: pulse-glow 2s ease-in-out infinite; }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 4px rgba(51,204,51,0.2); }
+    50% { box-shadow: 0 0 12px rgba(51,204,51,0.4); }
+  }
+
+  .battery { display: flex; align-items: center; gap: 2px; }
+  .battery-body { width: 22px; height: 10px; border: 1px solid var(--green-dim); border-radius: 2px; padding: 1px; position: relative; }
+  .battery-body::after { content: ''; position: absolute; right: -4px; top: 2px; width: 2px; height: 4px; background: var(--green-dim); border-radius: 0 1px 1px 0; }
+  .battery-fill { height: 100%; width: 70%; background: var(--green-main); border-radius: 1px; }
+
+  .screen-body { padding: 14px 14px 16px; min-height: 180px; max-height: 260px; overflow-y: auto; position: relative; z-index: 1; }
+  .screen-body::-webkit-scrollbar { width: 3px; }
+  .screen-body::-webkit-scrollbar-track { background: transparent; }
+  .screen-body::-webkit-scrollbar-thumb { background: var(--green-dim); border-radius: 2px; }
+
+  .screen-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--green-main);
+    white-space: pre-wrap;
+    word-break: break-word;
+    text-shadow: 0 0 8px rgba(51,204,51,0.3);
+  }
+
+  .screen-text.ended { color: var(--green-dim); }
+
+  .screen-cursor { display: inline-block; width: 8px; height: 14px; background: var(--green-main); animation: blink 1s step-end infinite; vertical-align: text-bottom; margin-left: 2px; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .screen-prompt { padding: 6px 14px 10px; border-top: 1px solid #1a2a1a; position: relative; z-index: 1; }
+  .screen-input { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--green-bright); display: flex; align-items: center; }
+  .screen-input .arrow { color: var(--green-dim); margin-right: 6px; }
+
+  /* MODE TOGGLE */
+  .mode-toggle { display: flex; padding: 0 8px 10px; gap: 4px; }
+  .mode-toggle.hidden { display: none; }
+  .mode-btn {
+    flex: 1;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 7px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mode-btn:hover { background: var(--btn-hover); }
+  .mode-btn.active { background: rgba(51,204,51,0.1); border-color: var(--green-dim); color: var(--green-main); }
+
+  /* TEXT INPUT */
+  .text-input-row { padding: 0 8px 10px; display: none; }
+  .text-input-row.active { display: block; }
+  .text-input-wrapper { display: flex; gap: 6px; align-items: center; }
+  .text-input-field {
+    flex: 1;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--green-bright);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .text-input-field:focus { border-color: var(--green-main); box-shadow: 0 0 8px rgba(51,204,51,0.15); }
+  .text-input-field::placeholder { color: var(--text-muted); font-size: 11px; }
+  .text-send-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: white;
+    background: var(--call-green);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .text-send-btn:hover { background: #28bb4e; }
+  .text-send-btn:active { background: #1a8a38; transform: scale(0.96); }
+
+  /* CONTROLS & KEYPAD */
+  .controls-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 8px 12px; }
+  .ctrl-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600; letter-spacing: 1px;
+    color: var(--text-light); background: none;
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 16px; cursor: pointer;
+    transition: all 0.1s; user-select: none;
+  }
+  .ctrl-btn:hover { background: var(--btn-hover); }
+  .ctrl-btn:active { background: var(--btn-active); transform: scale(0.96); }
+  .dpad { width: 52px; height: 52px; border-radius: 50%; background: radial-gradient(circle, var(--btn-hover), var(--btn-bg)); border: 1px solid var(--border); cursor: pointer; transition: transform 0.1s; }
+  .dpad:active { transform: scale(0.94); }
+
+  .keypad-section { display: block; }
+  .keypad-section.hidden { display: none; }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 8px 8px; }
+  .key {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--btn-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 0 10px; cursor: pointer; transition: all 0.08s; user-select: none;
+  }
+  .key:hover { background: var(--btn-hover); }
+  .key:active { background: var(--btn-active); transform: scale(0.95); }
+  .key .digit { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 600; color: var(--text-white); line-height: 1; }
+  .key .letters { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-muted); letter-spacing: 2px; margin-top: 2px; }
+
+  .action-row { display: flex; gap: 12px; padding: 4px 8px 0; }
+  .action-btn {
+    flex: 1; font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    padding: 14px 0; border: none; border-radius: 10px;
+    cursor: pointer; transition: all 0.1s; user-select: none;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-call { background: var(--call-green); color: white; }
+  .btn-call:hover { background: #28bb4e; }
+  .btn-call:active { background: #1a8a38; transform: scale(0.97); }
+  .btn-call:disabled { background: #1a3a22; color: #336644; cursor: not-allowed; transform: none; }
+  .btn-end { background: var(--end-red); color: white; }
+  .btn-end:hover { background: #dd4444; }
+  .btn-end:active { background: #aa2222; transform: scale(0.97); }
+  .btn-end:disabled { background: #3a1a1a; color: #664433; cursor: not-allowed; transform: none; }
+
+  /* PANELS */
+  .panel { width: 100%; max-width: 380px; margin-top: 24px; }
+  .panel-header { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px; }
+  .panel-card { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .field { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); min-width: 60px; text-transform: capitalize; }
+  .field input { flex: 1; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-white); outline: none; transition: border-color 0.2s; }
+  .field input:focus { border-color: var(--green-dim); }
+
+  /* CURL PANEL */
+  .curl-output {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--green-main);
+    background: var(--bg-deep); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+    cursor: pointer; transition: border-color 0.2s; position: relative;
+  }
+  .curl-output:hover { border-color: var(--green-dim); }
+  .curl-output::after { content: 'click to copy'; position: absolute; top: 4px; right: 8px; font-size: 9px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+  .curl-output.copied::after { content: 'copied!'; color: var(--green-main); }
+
+  /* HISTORY */
+  .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .clear-btn { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 1px; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.15s; }
+  .clear-btn:hover { color: var(--text-light); background: rgba(255,255,255,0.05); }
+  .history-body { max-height: 300px; overflow-y: auto; padding-right: 4px; }
+  .history-body::-webkit-scrollbar { width: 3px; }
+  .history-body::-webkit-scrollbar-track { background: transparent; }
+  .history-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-entry { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(42,51,72,0.5); }
+  .log-entry:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .log-timestamp { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--green-dim); }
+  .log-request { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); margin: 4px 0; }
+  .log-request .arrow { color: var(--green-dim); }
+  .log-curl { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--amber-dim); margin: 2px 0 4px 8px; white-space: pre-wrap; word-break: break-all; }
+  .log-response { font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; color: var(--green-main); white-space: pre-wrap; word-break: break-word; padding: 6px 0 0 8px; border-left: 2px solid #1a2a1a; }
+  .log-response.is-end { color: var(--end-red); }
+  .log-error { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--end-red); margin-top: 4px; }
+  .log-timing { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-muted); margin-top: 4px; }
+  .empty-history { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); text-align: center; padding: 20px 0; opacity: 0.5; }
+
+  @media (max-width: 420px) {
+    body { padding: 12px 8px 30px; }
+    .phone-container { border-radius: 20px; padding: 12px 10px 16px; }
+    .key .digit { font-size: 20px; }
+    .key { padding: 10px 0 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone-container">
+  <div class="phone-brand">ANGELOPP</div>
+
+  <div class="screen">
+    <div class="screen-header">
+      <span class="carrier">Safaricom KE</span>
+      <span class="status-badge status-idle" id="statusBadge">IDLE</span>
+      <div class="battery"><div class="battery-body"><div class="battery-fill"></div></div></div>
+    </div>
+    <div class="screen-body" id="screenBody">
+      <div class="screen-text" id="screenText">ANGELOPP BUMALA
+&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;
+
+Dial *483*466#
+
+Press CALL to start
+
+Use 123 for menus
+Switch to ABC for text</div>
+    </div>
+    <div class="screen-prompt" id="screenPrompt" style="display:none">
+      <div class="screen-input">
+        <span class="arrow">&#x25B6;</span>
+        <span id="inputDisplay"></span>
+        <span class="screen-cursor"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mode-toggle hidden" id="modeToggle">
+    <button class="mode-btn active" id="btnModeKeypad" onclick="setMode('keypad')">123 Keypad</button>
+    <button class="mode-btn" id="btnModeText" onclick="setMode('text')">ABC Text</button>
+  </div>
+
+  <div class="text-input-row" id="textInputRow">
+    <div class="text-input-wrapper">
+      <input type="text" class="text-input-field" id="textInputField" placeholder="Type text here..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="text-send-btn" onclick="sendInput()">SEND</button>
+    </div>
+  </div>
+
+  <div class="controls-row" id="controlsRow">
+    <button class="ctrl-btn" onclick="clearInput()">CLEAR</button>
+    <div class="dpad" onclick="sendInput()" title="OK / Send"></div>
+    <button class="ctrl-btn" onclick="pressBack()">BACK</button>
+  </div>
+
+  <div class="keypad-section" id="keypadSection">
+    <div class="keypad">
+      <button class="key" onclick="pressKey('1')"><span class="digit">1</span><span class="letters">&nbsp;</span></button>
+      <button class="key" onclick="pressKey('2')"><span class="digit">2</span><span class="letters">ABC</span></button>
+      <button class="key" onclick="pressKey('3')"><span class="digit">3</span><span class="letters">DEF</span></button>
+      <button class="key" onclick="pressKey('4')"><span class="digit">4</span><span class="letters">GHI</span></button>
+      <button class="key" onclick="pressKey('5')"><span class="digit">5</span><span class="letters">JKL</span></button>
+      <button class="key" onclick="pressKey('6')"><span class="digit">6</span><span class="letters">MNO</span></button>
+      <button class="key" onclick="pressKey('7')"><span class="digit">7</span><span class="letters">PQRS</span></button>
+      <button class="key" onclick="pressKey('8')"><span class="digit">8</span><span class="letters">TUV</span></button>
+      <button class="key" onclick="pressKey('9')"><span class="digit">9</span><span class="letters">WXYZ</span></button>
+      <button class="key" onclick="pressKey('*')"><span class="digit">*</span><span class="letters">&nbsp;</span></button>
+      <button class="key" onclick="pressKey('0')"><span class="digit">0</span><span class="letters">+</span></button>
+      <button class="key" onclick="pressKey('#')"><span class="digit">#</span><span class="letters">&nbsp;</span></button>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="action-btn btn-call" id="btnCall" onclick="startSession()">&#x260E; CALL</button>
+    <button class="action-btn btn-end" id="btnEnd" onclick="endSession()" disabled>&#x2716; END</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">Settings</div>
+  <div class="panel-card">
+    <div class="field"><label>Phone</label><input type="text" id="cfgPhone" value="+254700000000"></div>
+    <div class="field"><label>API</label><input type="text" id="cfgApi" value="/ussd"></div>
+    <div class="field"><label>Session</label><input type="text" id="cfgSession" value="" readonly></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header">Curl Equivalent</div>
+  <div class="panel-card">
+    <div class="curl-output" id="curlOutput" onclick="copyCurl()">Press CALL to start — the matching curl appears here.</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="history-header">
+    <div class="panel-header" style="margin:0">Session History</div>
+    <button class="clear-btn" onclick="clearHistory()">CLEAR</button>
+  </div>
+  <div class="panel-card">
+    <div class="history-body" id="historyBody">
+      <div class="empty-history">Press CALL to start a session</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let sessionActive = false;
+  let sessionId = '';
+  let textPath = '';
+  let currentInput = '';
+  let inputMode = 'keypad';
+  let history = [];
+
+  const $ = id => document.getElementById(id);
+
+  function generateSessionId() {
+    return 'sim_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+  }
+
+  function startSession() {
+    sessionId = generateSessionId();
+    $('cfgSession').value = sessionId;
+    textPath = '';
+    currentInput = '';
+    sessionActive = true;
+    $('btnCall').disabled = true;
+    $('btnEnd').disabled = false;
+    $('statusBadge').className = 'status-badge status-ussd';
+    $('statusBadge').textContent = 'USSD';
+    $('screenPrompt').style.display = 'block';
+    $('inputDisplay').textContent = '';
+    $('modeToggle').classList.remove('hidden');
+    $('textInputField').value = '';
+    sendToServer('');
+  }
+
+  function endSession() {
+    sessionActive = false;
+    currentInput = '';
+    textPath = '';
+    $('btnCall').disabled = false;
+    $('btnEnd').disabled = true;
+    $('statusBadge').className = 'status-badge status-idle';
+    $('statusBadge').textContent = 'IDLE';
+    $('screenPrompt').style.display = 'none';
+    $('modeToggle').classList.add('hidden');
+    $('textInputRow').classList.remove('active');
+    setScreen('Session ended.\n\nPress CALL to start again.', true);
+  }
+
+  function setMode(mode) {
+    inputMode = mode;
+    $('btnModeKeypad').classList.toggle('active', mode === 'keypad');
+    $('btnModeText').classList.toggle('active', mode === 'text');
+    $('keypadSection').classList.toggle('hidden', mode === 'text');
+    $('textInputRow').classList.toggle('active', mode === 'text');
+    if (mode === 'text') {
+      $('textInputField').value = currentInput;
+      currentInput = '';
+      $('inputDisplay').textContent = '';
+      $('textInputField').focus();
+    } else {
+      currentInput = $('textInputField').value;
+      $('inputDisplay').textContent = currentInput;
+      $('textInputField').value = '';
+    }
+  }
+
+  function pressKey(key) {
+    if (!sessionActive) return;
+    currentInput += key;
+    $('inputDisplay').textContent = currentInput;
+  }
+
+  function clearInput() {
+    if (!sessionActive) return;
+    if (inputMode === 'text') { $('textInputField').value = ''; return; }
+    if (currentInput.length > 0) {
+      currentInput = currentInput.slice(0, -1);
+      $('inputDisplay').textContent = currentInput;
+    }
+  }
+
+  function pressBack() {
+    if (!sessionActive) return;
+    if (inputMode === 'text' && $('textInputField').value.length > 0) { $('textInputField').value = ''; return; }
+    if (inputMode === 'keypad' && currentInput.length > 0) { currentInput = ''; $('inputDisplay').textContent = ''; return; }
+    if (textPath) {
+      const parts = textPath.split('*');
+      parts.pop();
+      textPath = parts.join('*');
+      sendToServer(textPath);
+    }
+  }
+
+  function sendInput() {
+    if (!sessionActive) return;
+    let input = '';
+    if (inputMode === 'text') {
+      input = $('textInputField').value.trim();
+      $('textInputField').value = '';
+    } else {
+      input = currentInput;
+      currentInput = '';
+      $('inputDisplay').textContent = '';
+    }
+    if (input === '') return;
+    textPath = textPath === '' ? input : textPath + '*' + input;
+    sendToServer(textPath);
+  }
+
+  function buildCurl(text) {
+    const phone = $('cfgPhone').value;
+    const api = $('cfgApi').value;
+    const base = window.location.origin;
+    return 'curl -X POST ' + base + api + ' \\\n  -d "sessionId=' + sessionId + '&phoneNumber=' + phone + '&text=' + text + '"';
+  }
+
+  function updateCurlDisplay(text) {
+    $('curlOutput').textContent = buildCurl(text);
+    $('curlOutput').classList.remove('copied');
+  }
+
+  function copyCurl() {
+    const text = $('curlOutput').textContent;
+    navigator.clipboard.writeText(text.replace(/\\\n\s*/g, '')).then(function() {
+      $('curlOutput').classList.add('copied');
+      setTimeout(function() { $('curlOutput').classList.remove('copied'); }, 1500);
+    });
+  }
+
+  async function sendToServer(text) {
+    const phone = $('cfgPhone').value;
+    const api = $('cfgApi').value;
+    const startTime = performance.now();
+    const timestamp = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setScreen('...', false);
+    updateCurlDisplay(text);
+    try {
+      const body = new URLSearchParams({ sessionId: sessionId, phoneNumber: phone, text: text });
+      const response = await fetch(api, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+      const elapsed = Math.round(performance.now() - startTime);
+      const responseText = await response.text();
+      const isEnd = responseText.startsWith('END');
+      const displayText = responseText.replace(/^(CON|END)\s*/, '');
+      setScreen(displayText, isEnd);
+      addHistoryEntry(timestamp, text, responseText, null, elapsed);
+      if (isEnd) {
+        sessionActive = false;
+        $('btnCall').disabled = false;
+        $('btnEnd').disabled = true;
+        $('statusBadge').className = 'status-badge status-idle';
+        $('statusBadge').textContent = 'IDLE';
+        $('screenPrompt').style.display = 'none';
+        $('modeToggle').classList.add('hidden');
+        $('textInputRow').classList.remove('active');
+      }
+    } catch (err) {
+      const elapsed = Math.round(performance.now() - startTime);
+      setScreen('Connection error.\nCheck if server is running.', true);
+      addHistoryEntry(timestamp, text, null, err.message, elapsed);
+    }
+  }
+
+  function setScreen(text, ended) {
+    const el = $('screenText');
+    el.textContent = text;
+    el.className = ended ? 'screen-text ended' : 'screen-text';
+    $('screenBody').scrollTop = $('screenBody').scrollHeight;
+  }
+
+  function addHistoryEntry(time, sentText, response, error, ms) {
+    const curl = buildCurl(sentText);
+    history.unshift({ time: time, sentText: sentText, response: response, error: error, ms: ms, curl: curl });
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const container = $('historyBody');
+    if (history.length === 0) { container.innerHTML = '<div class="empty-history">Press CALL to start a session</div>'; return; }
+    container.innerHTML = history.map(function(e) {
+      const isEnd = e.response && e.response.startsWith('END');
+      const rc = isEnd ? 'log-response is-end' : 'log-response';
+      let h = '<div class="log-entry">';
+      h += '<span class="log-timestamp">' + e.time + '</span>';
+      h += '<div class="log-request"><span class="arrow">&rarr;</span> text="' + escapeHtml(e.sentText) + '"</div>';
+      h += '<div class="log-curl">' + escapeHtml(e.curl) + '</div>';
+      if (e.response) h += '<div class="' + rc + '">' + escapeHtml(e.response) + '</div>';
+      if (e.error) h += '<div class="log-error">&#x26A0; ' + escapeHtml(e.error) + '</div>';
+      h += '<div class="log-timing">' + e.ms + 'ms</div></div>';
+      return h;
+    }).join('');
+  }
+
+  function clearHistory() { history = []; renderHistory(); }
+
+  function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.target.id === 'cfgPhone' || e.target.id === 'cfgApi') return;
+    if (e.target.id === 'textInputField') {
+      if (e.key === 'Enter') { sendInput(); e.preventDefault(); }
+      else if (e.key === 'Escape') { if (sessionActive) endSession(); e.preventDefault(); }
+      return;
+    }
+    var key = e.key;
+    if (key >= '0' && key <= '9') { pressKey(key); e.preventDefault(); }
+    else if (key === '*') { pressKey('*'); e.preventDefault(); }
+    else if (key === '#') { pressKey('#'); e.preventDefault(); }
+    else if (key === 'Enter') { if (sessionActive) sendInput(); else startSession(); e.preventDefault(); }
+    else if (key === 'Backspace') { clearInput(); e.preventDefault(); }
+    else if (key === 'Escape') { if (sessionActive) endSession(); e.preventDefault(); }
+    else if (sessionActive && key.length === 1 && /[a-zA-Z ]/.test(key)) {
+      if (inputMode === 'keypad') setMode('text');
+      $('textInputField').focus();
+    }
+  });
+</script>
+
+</body>
+</html>
